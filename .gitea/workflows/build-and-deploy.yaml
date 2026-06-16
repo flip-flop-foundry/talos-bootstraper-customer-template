@@ -29,13 +29,15 @@ jobs:
 
       # -----------------------------------------------------------------------
       # Build and push the Docker image to the Gitea container registry.
-      # GITEA_TOKEN is automatically injected by the runner with repo-level
-      # permissions including write:packages.
+      # CI_REGISTRY_TOKEN is a write:package token for the org-level CI service
+      # user (ci-{org}), set as an org secret by bootstrap-customer.sh so every
+      # repo in the org inherits it automatically.
+      # CI_REGISTRY_USER is an org variable (non-sensitive) with the username.
       # -----------------------------------------------------------------------
       - name: Log in to Gitea container registry
         run: |
-          echo "${{ secrets.GITEA_TOKEN }}" | docker login "${{ vars.REGISTRY_DOMAIN }}" \
-            --username "${{ gitea.actor }}" \
+          echo "${{ secrets.CI_REGISTRY_TOKEN }}" | docker login "${{ vars.REGISTRY_DOMAIN }}" \
+            --username "${{ vars.CI_REGISTRY_USER }}" \
             --password-stdin
 
       - name: Build Docker image
