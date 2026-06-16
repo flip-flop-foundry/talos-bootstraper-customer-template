@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: PLACEHOLDER_APP
+  namespace: PLACEHOLDER_NAMESPACE
+  labels:
+    app: PLACEHOLDER_APP
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: PLACEHOLDER_APP
+  template:
+    metadata:
+      labels:
+        app: PLACEHOLDER_APP
+    spec:
+      containers:
+        - name: PLACEHOLDER_APP
+          # Image pushed to Gitea container registry by the CI workflow.
+          # imagePullPolicy: Always ensures a fresh pull on every rollout restart.
+          image: PLACEHOLDER_GITEA_DOMAIN/PLACEHOLDER_ORG/PLACEHOLDER_APP:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          env:
+            - name: APP_NAME
+              value: "PLACEHOLDER_APP"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi

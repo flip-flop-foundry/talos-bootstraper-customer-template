@@ -1,0 +1,78 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------------------------
+      # Build and push the Docker image to the Gitea container registry.
+      # GITEA_TOKEN is automatically injected by the runner with repo-level
+      # permissions including write:packages.
+      # -----------------------------------------------------------------------
+      - name: Log in to Gitea container registry
+        run: |
+          echo "${{ secrets.GITEA_TOKEN }}" | docker login "${{ vars.GITEA_DOMAIN }}" \
+            --username "${{ gitea.actor }}" \
+            --password-stdin
+
+      - name: Build Docker image
+        run: |
+          IMAGE="${{ vars.GITEA_DOMAIN }}/${{ vars.CUSTOMER_ORG }}/${{ vars.APP_NAME }}"
+          docker build \
+            --build-arg APP_VERSION="${{ gitea.sha }}" \
+            -t "${IMAGE}:latest" \
+            -t "${IMAGE}:${{ gitea.sha }}" \
+            .
+
+      - name: Push Docker image
+        run: |
+          IMAGE="${{ vars.GITEA_DOMAIN }}/${{ vars.CUSTOMER_ORG }}/${{ vars.APP_NAME }}"
+          docker push "${IMAGE}:latest"
+          docker push "${IMAGE}:${{ gitea.sha }}"
+
+      # -----------------------------------------------------------------------
+      # Trigger a rolling restart of the Deployment so Kubernetes pulls the
+      # freshly pushed :latest image.
+      #
+      # KUBE_SA_TOKEN, KUBERNETES_SERVICE_HOST, and KUBERNETES_SERVICE_PORT are
+      # injected into the job container's environment by the runner's saveEnvs
+      # initContainer — they come from the runner pod's mounted service account
+      # token (gitea-runner-service-account).
+      #
+      # The runner SA has a RoleBinding in the customer namespace (created by
+      # bootstrap-customer.sh) that grants it permission to patch Deployments.
+      # -----------------------------------------------------------------------
+      - name: Install kubectl
+        run: |
+          KUBECTL_VERSION=$(curl -fsSL https://dl.k8s.io/release/stable.txt)
+          curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" \
+            -o /usr/local/bin/kubectl
+          chmod +x /usr/local/bin/kubectl
+
+      - name: Rollout restart Deployment
+        run: |
+          kubectl \
+            --server="https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT}" \
+            --token="${KUBE_SA_TOKEN}" \
+            --insecure-skip-tls-verify \
+            -n "${{ vars.NAMESPACE }}" \
+            rollout restart deployment/${{ vars.APP_NAME }}
+
+      - name: Wait for rollout to complete
+        run: |
+          kubectl \
+            --server="https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT}" \
+            --token="${KUBE_SA_TOKEN}" \
+            --insecure-skip-tls-verify \
+            -n "${{ vars.NAMESPACE }}" \
+            rollout status deployment/${{ vars.APP_NAME }} \
+            --timeout=120s
