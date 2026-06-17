@@ -104,13 +104,15 @@ You do not need to reference the project in your manifests.
 
 ## Ingress
 
-The app is exposed via a Traefik `IngressRoute` in `deploy/ingressroute.yaml` at:
+The app is exposed via a standard Kubernetes `Ingress` in `deploy/ingress.yaml` at:
 
 ```
 https://PLACEHOLDER_INGRESS_HOST
 ```
 
-To add a second hostname or path, edit `deploy/ingressroute.yaml` and push. ArgoCD will apply the change within a few minutes.
+The hostname format is `<org>-<repo>.<clusterDomain>` (e.g. `PLACEHOLDER_NAMESPACE.PLACEHOLDER_CLUSTER_DOMAIN`), which is unique across all customer orgs and repos on the cluster. cert-manager and external-dns are configured via annotations on the Ingress resource.
+
+To add a second hostname or path, edit `deploy/ingress.yaml` and push. ArgoCD will apply the change within a few minutes.
 
 ---
 

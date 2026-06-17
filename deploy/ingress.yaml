@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: PLACEHOLDER_APP
+  namespace: PLACEHOLDER_NAMESPACE
+  labels:
+    app: PLACEHOLDER_APP
+  annotations:
+    advertise-via-dns: "true"
+    cert-manager.io/cluster-issuer: PLACEHOLDER_CLUSTER_ISSUER
+    cert-manager.io/common-name: PLACEHOLDER_INGRESS_HOST
+    external-dns.alpha.kubernetes.io/hostname: PLACEHOLDER_INGRESS_HOST
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: PLACEHOLDER_INGRESS_HOST
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: PLACEHOLDER_APP
+                port:
+                  number: 80
+  tls:
+    - hosts:
+        - PLACEHOLDER_INGRESS_HOST
+      secretName: cert-PLACEHOLDER_INGRESS_HOST
