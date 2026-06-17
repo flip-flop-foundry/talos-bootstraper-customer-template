@@ -65,6 +65,10 @@ jobs:
       #
       # The runner SA has a RoleBinding in the customer namespace (created by
       # bootstrap-customer.sh) that grants it permission to patch Deployments.
+      #
+      # On the very first push the Deployment won't exist yet (ArgoCD hasn't
+      # synced the customer app). We skip the restart in that case — the initial
+      # ArgoCD sync will deploy using the :latest image we just pushed.
       # -----------------------------------------------------------------------
       - name: Install kubectl
         run: |
@@ -75,19 +79,18 @@ jobs:
 
       - name: Rollout restart Deployment
         run: |
-          kubectl \
-            --server="https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT}" \
-            --token="${KUBE_SA_TOKEN}" \
-            --insecure-skip-tls-verify \
-            -n "${{ vars.NAMESPACE }}" \
-            rollout restart deployment/${{ vars.APP_NAME }}
+          KUBE="kubectl --server=https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT} --token=${KUBE_SA_TOKEN} --insecure-skip-tls-verify -n ${{ vars.NAMESPACE }}"
+          if ! $KUBE get deployment/${{ vars.APP_NAME }} &>/dev/null; then
+            echo "Deployment ${{ vars.APP_NAME }} not found in ${{ vars.NAMESPACE }} — skipping restart (ArgoCD will deploy on first sync)"
+            exit 0
+          fi
+          $KUBE rollout restart deployment/${{ vars.APP_NAME }}
 
       - name: Wait for rollout to complete
         run: |
-          kubectl \
-            --server="https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT}" \
-            --token="${KUBE_SA_TOKEN}" \
-            --insecure-skip-tls-verify \
-            -n "${{ vars.NAMESPACE }}" \
-            rollout status deployment/${{ vars.APP_NAME }} \
-            --timeout=120s
+          KUBE="kubectl --server=https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT} --token=${KUBE_SA_TOKEN} --insecure-skip-tls-verify -n ${{ vars.NAMESPACE }}"
+          if ! $KUBE get deployment/${{ vars.APP_NAME }} &>/dev/null; then
+            echo "Deployment not present yet — skipping rollout status check"
+            exit 0
+          fi
+          $KUBE rollout status deployment/${{ vars.APP_NAME }} --timeout=120s
